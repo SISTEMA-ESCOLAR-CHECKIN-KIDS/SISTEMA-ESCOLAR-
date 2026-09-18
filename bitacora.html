@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<div id="circle-cursor" class="no-print" style="position: fixed; pointer-events: none; z-index: 9999; font-weight: 900; font-family: sans-serif; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); color: blue;">
+</div>
+
+<script>
+    const text = "CHAVARRÍA PRODUCCIONES ";
+    const container = document.getElementById('circle-cursor');
+    const radius = 180; // Aumenté un poco el radio para que se lea mejor
+
+    // Crear las letras
+    text.split('').forEach((char, i) => {
+        const span = document.createElement('span');
+        span.innerText = char;
+        span.style.position = 'absolute';
+        span.style.display = 'inline-block';
+        span.style.transform = `rotate(${i * (360 / text.length)}deg) translateY(-${radius}px)`;
+        container.appendChild(span);
+    });
+
+    // Mover con el mouse
+    document.addEventListener('mousemove', (e) => {
+        container.style.left = e.clientX + 'px';
+        container.style.top = e.clientY + 'px';
+    });
+
+    function animateColors() {
+        // Usamos una lógica de tono (hue) que va de 0 a 360 para colores vivos
+        const hue = (Date.now() / 20) % 360; 
+        
+        // HSL: 100% saturation y 50% lightness garantiza colores sólidos y brillantes
+        container.style.color = `hsl(${hue}, 100%, 50%)`;
+        container.style.transform = `rotate(${Date.now() / 20}deg)`;
+        
+        requestAnimationFrame(animateColors);
+    }
+    animateColors();
+</script>
+
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Módulo de Bitácora - Historial y Folios</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <link rel="icon" href="icons/icon-se-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-se-192.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <style>
+        input[type="text"], textarea, select {
+            text-transform: uppercase;
+        }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; padding: 0; margin: 0; }
+            .print-container { box-shadow: none; border: none; width: 100%; padding: 0; }
+        }
+    </style>
+
+
+<!-- Botones de Ejemplos Rápidos Centrados -->
+<div class="max-w-4xl mx-auto mb-4 p-4 bg-slate-100 rounded-lg border border-slate-300 text-center shadow-sm">
+    <span class="block text-xs font-bold text-slate-700 mb-2">⚡ CARGAR EJEMPLO DE LLENADO OFICIAL:</span>
+    <div class="inline-flex flex-wrap justify-center gap-2">
+        <button type="button" onclick="cargarEjemplo('accidente')" class="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 shadow transition">Accidente Escolar</button>
+        <button type="button" onclick="cargarEjemplo('retardo')" class="px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded hover:bg-emerald-700 shadow transition">Retardo de Alumno</button>
+        <button type="button" onclick="cargarEjemplo('disruptiva')" class="px-3 py-1.5 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700 shadow transition">Conducta Disruptiva</button>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+
+</head>
+<body class="bg-slate-200 p-4 md:p-8 font-sans">
+
+    <!-- Barra fija de navegación: SIEMPRE visible sin importar qué sección de Bitácora
+         esté activa (Formulario, Reporte o Historial), para que nunca haga falta
+         refrescar la página para salir. -->
+    <div class="no-print max-w-4xl mx-auto mb-3">
+        <button type="button" onclick="volverAlSistema()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold shadow-sm transition">⬅️ Volver al Sistema Escolar</button>
+    </div>
+
+    <!-- Modal Promo Video -->
+    <div id="promoModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10000;align-items:center;justify-content:center;flex-direction:column;">
+        <div style="background:#fff;border-radius:16px;max-width:95%;max-height:90vh;overflow:auto;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.3);position:relative;">
+            <button onclick="cerrarPromoVideo()" style="position:absolute;top:12px;right:12px;background:#dc2626;color:#fff;border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer;font-weight:bold;">✕</button>
+            <iframe src="promo-sistema-escolar.html" style="width:100%;height:600px;border:none;border-radius:8px;" allow="autoplay"></iframe>
+            <div style="margin-top:16px;text-center;">
+                <button onclick="cerrarPromoVideo()" style="background:#6366f1;color:#fff;padding:12px 24px;border:none;border-radius:8px;font-weight:600;font-size:16px;cursor:pointer;">Entendido, continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-12 rounded-xl shadow-2xl">
+        
+        <!-- Controles de Nivel e Historial -->
+        <div class="no-print mb-6 bg-indigo-50 p-4 rounded-xl border border-indigo-200 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div id="bloqueSelectorNivel">
+                <h2 class="text-xs font-bold text-indigo-900 uppercase tracking-wider mb-2">Seleccionar Nivel Institucional</h2>
+                <div class="flex gap-4">
+                    <button onclick="cambiarNivel('Primaria')" id="btnPrimaria" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow transition">Primaria</button>
+                    <button onclick="cambiarNivel('Secundaria')" id="btnSecundaria" class="bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition">Secundaria</button>
+                </div>
+            </div>
+            <div class="flex gap-2 w-full md:w-auto">
+                <button onclick="mostrarFormulario()" class="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow transition">➕ Nueva Incidencia</button>
+                <button onclick="mostrarHistorial()" class="flex-1 md:flex-none bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow transition">📂 Ver Historial Guardado</button>
+            </div>
+        </div>
+
+        <!-- CONFIGURACIÓN DE ESCUELA Y PERSONAL -->
+        <div id="seccionConfig" class="no-print mb-6 bg-slate-100 p-4 rounded-xl border border-slate-300 space-y-3">
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <h2 class="text-xs font-bold text-slate-800 uppercase tracking-wider" id="tituloConfigPersonal">Configuración del Plantel - Primaria</h2>
+                <div class="flex gap-2">
+                    <button onclick="toggleEdicionManual()" id="btnToggleEdicion" class="bg-slate-600 hover:bg-slate-700 text-white px-2.5 py-1 rounded text-[10px] font-bold shadow transition">🔓 Editar manualmente</button>
+                    <button onclick="fijarUltimoFolioUsado()" class="bg-sky-700 hover:bg-sky-800 text-white px-2.5 py-1 rounded text-[10px] font-bold shadow transition">🎯 Fijar último folio usado</button>
+                    <button onclick="reiniciarFolioActual()" class="bg-amber-600 hover:bg-amber-700 text-white px-2.5 py-1 rounded text-[10px] font-bold shadow transition">🔄 Reiniciar Folio a 1</button>
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-500 -mt-1">El folio se recalcula solo a partir de lo guardado (aquí y en Firebase): nunca se reinicia por borrar datos del sitio, y si eliminas la incidencia más reciente, su número se libera automáticamente para la siguiente. "Fijar último folio usado" es solo para corregirlo a mano en casos especiales.</p>
+
+            <div id="avisoSincronizado" class="hidden text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+                🔗 Estos datos se cargaron automáticamente desde el Sistema Escolar. Usa "Editar manualmente" solo si necesitas corregir algo.
+            </div>
+            <div id="avisoManual" class="hidden text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                ✏️ No se encontraron datos del Sistema Escolar; captúralos aquí manualmente. Se guardarán en este dispositivo.
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2 border-b border-slate-200">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Nombre de la Escuela:</label>
+                    <input type="text" id="configEscuela" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="guardarPersonalEnMemoria(); convertirMayusculas(this)">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Clave C.C.T.:</label>
+                    <input type="text" id="configCCT" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="guardarPersonalEnMemoria(); convertirMayusculas(this)">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Nombre del Docente:</label>
+                    <input type="text" id="configDocente" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="guardarPersonalEnMemoria(); convertirMayusculas(this)">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Nombre del Director (Vo. Bo.):</label>
+                    <input type="text" id="configDirector" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="guardarPersonalEnMemoria(); convertirMayusculas(this)">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Turno:</label>
+                    <select id="configTurno" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" onchange="guardarPersonalEnMemoria()">
+                        <option value="MATUTINO">Matutino</option>
+                        <option value="VESPERTINO">Vespertino</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 border-t border-slate-200">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Ciclo Escolar (para el folio):</label>
+                    <input type="text" id="configCiclo" placeholder="EJ. 2026-2027" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="convertirMayusculas(this); actualizarCicloActual()">
+                </div>
+            </div>
+        </div>
+
+        <!-- 1. FORMULARIO DE CAPTURA -->
+        <div id="seccionFormulario" class="no-print bg-slate-50 p-6 rounded-xl border border-slate-300 space-y-4">
+            <h2 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Registrar Nueva Incidencia en Bitácora</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Grado:</label>
+                    <select id="inputGradoSel" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" onchange="poblarGrupoSelect()"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Grupo:</label>
+                    <select id="inputGrupoSel" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" onchange="actualizarListaAlumnos()"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Fecha:</label>
+                    <input type="date" id="inputFecha" class="w-full p-2 border border-slate-300 rounded text-sm bg-white">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Nombre del alumno (a): <span class="font-normal normal-case text-slate-400">(elige de la lista según grado/grupo o escribe uno nuevo)</span></label>
+                    <input type="text" id="inputAlumno" list="listaAlumnosDatalist" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="convertirMayusculas(this); autocompletarTutor()" onchange="autocompletarTutor()">
+                    <datalist id="listaAlumnosDatalist"></datalist>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Nombre del padre, madre de familia o tutor:</label>
+                    <input type="text" id="inputTutor" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" placeholder="EJ. ROCIO RUIZ PEREZ (se autocompleta, puedes cambiarlo)" oninput="convertirMayusculas(this)">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">Asunto / Protocolo de Violencia:</label>
+                <select id="inputAsunto" class="w-full p-2 border border-slate-300 rounded text-sm bg-white font-medium text-slate-800">
+                    <option value="SIN INCIDENCIAS">Sin incidencias</option>
+                    <option value="MALA CONDUCTA / INCUMPLIMIENTO">Mala conducta / Incumplimiento general</option>
+                    <option value="ACCIDENTE ESCOLAR">Accidente escolar</option>
+                    <option value="RETARDO EN RECOGER AL ALUMNO AL TÉRMINO DE LA JORNADA ESCOLAR">Retardo en recoger al alumno</option>
+                    <option value="CONDUCTA DISRUPTIVA">Conducta disruptiva</option>
+                    <option value="PROTOCOLO DE VIOLENCIA: FÍSICO DIRECTO">Protocolo de Violencia: Físico directo</option>
+                    <option value="PROTOCOLO DE VIOLENCIA: FÍSICO INDIRECTO">Protocolo de Violencia: Físico indirecto</option>
+                    <option value="PROTOCOLO DE VIOLENCIA: SEXUAL">Protocolo de Violencia: Sexual</option>
+                    <option value="PROTOCOLO DE VIOLENCIA: PSICOLÓGICO">Protocolo de Violencia: Psicológico</option>
+                    <option value="PROTOCOLO DE VIOLENCIA: POR EXCLUSIÓN SOCIAL">Protocolo de Violencia: Por exclusión social</option>
+                    <option value="PROTOCOLO DE VIOLENCIA: POR CYBERBULLYING">Protocolo de Violencia: Por cyberbullying</option>
+                </select>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Narrativa de los hechos:</label>
+                    <textarea id="inputNarrativa" rows="3" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="convertirMayusculas(this)"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Compromisos del tutor:</label>
+                        <textarea id="inputCompromisoTutor" rows="2" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="convertirMayusculas(this)"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Compromisos del alumno:</label>
+                        <textarea id="inputCompromisoAlumno" rows="2" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="convertirMayusculas(this)"></textarea>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">Intervención del docente:</label>
+                    <textarea id="inputIntervencion" rows="2" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="convertirMayusculas(this)"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Falta (Marco de Convivencia):</label>
+                        <input type="text" id="inputFalta" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" placeholder="EJ. CAUSA LEVE" oninput="convertirMayusculas(this)">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Acciones formativas:</label>
+                        <input type="text" id="inputAcciones" class="w-full p-2 border border-slate-300 rounded text-sm bg-white" oninput="convertirMayusculas(this)">
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="guardarYMostrarReporte()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded shadow transition text-sm flex items-center justify-center gap-2">
+                💾 Guardar en Historial y Generar Formato Oficial
+            </button>
+        </div>
+
+        <!-- 2. SECCIÓN DE HISTORIAL GUARDADO -->
+        <div id="seccionHistorial" class="hidden no-print space-y-4">
+            <div class="flex justify-between items-center bg-slate-100 p-4 rounded-xl border border-slate-300">
+                <h2 class="text-xs font-bold text-slate-800 uppercase tracking-wider">Historial de Incidencias Guardadas (<span id="lblNivelHistorial">Primaria</span>)</h2>
+                <button onclick="mostrarFormulario()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow">← Volver al Formulario</button>
+            </div>
+            <div id="listaHistorial" class="space-y-3">
+                <!-- Se cargan dinámicamente -->
+            </div>
+        </div>
+
+        <!-- 3. FORMATO OFICIAL IMPRIMIBLE -->
+        <div id="seccionReporte" class="hidden bg-white text-black text-[11px] space-y-3 p-4 border border-slate-400 rounded-lg shadow-sm print-container">
+            
+            <div class="no-print flex justify-between items-center bg-emerald-50 p-3 rounded border border-emerald-200 mb-4">
+                <span class="text-emerald-800 font-bold text-xs">✨ Registro guardado permanentemente en el navegador.</span>
+                <button onclick="mostrarHistorial()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-3 py-1 rounded text-xs font-bold">← Ir al Historial / Volver</button>
+            </div>
+
+            <div class="flex justify-end">
+                <div class="border border-black px-3 py-1 font-bold text-xs bg-slate-50" id="lblFolio">FOLIO: ---</div>
+            </div>
+
+            <h1 class="text-center font-bold text-base uppercase tracking-wide">Bitácora Escolar</h1>
+
+            <div class="border border-black p-2 space-y-1 bg-slate-50/50">
+                <div class="font-bold uppercase" id="lblEscuela">ESCUELA PRIMARIA</div>
+                <div class="grid grid-cols-2">
+                    <div><strong>C.C.T.:</strong> <span id="lblCCT">---</span></div>
+                    <div><strong>Turno:</strong> <span id="lblTurno">---</span></div>
+                </div>
+            </div>
+
+            <table class="w-full border-collapse border border-black">
+                <tr>
+                    <td class="border border-black p-1.5 w-3/5"><strong>Nombre del alumno (a):</strong> <span id="viewAlumno"></span></td>
+                    <td class="border border-black p-1.5 w-2/5"><strong>Grado y grupo:</strong> <span id="viewGrado"></span></td>
+                </tr>
+                <tr>
+                    <td class="border border-black p-1.5"><strong>Nombre del padre, madre de familia o tutor:</strong> <span id="viewTutor"></span></td>
+                    <td class="border border-black p-1.5"><strong>Fecha:</strong> <span id="viewFecha"></span></td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="border border-black p-1.5 bg-slate-50"><strong>Asunto / Protocolo aplicado:</strong> <span id="viewAsunto" class="font-bold text-slate-900"></span></td>
+                </tr>
+            </table>
+
+            <div class="border border-black p-2 min-h-[70px]">
+                <strong class="block mb-1 text-slate-900">Narrativa de los hechos (circunstancias de modo, tiempo y lugar):</strong>
+                <p id="viewNarrativa" class="whitespace-pre-line text-slate-800 leading-relaxed"></p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <div class="border border-black p-2 min-h-[50px]">
+                    <strong class="block mb-1">Compromisos del padre, madre o tutor:</strong>
+                    <p id="viewCompromisoTutor" class="whitespace-pre-line text-slate-800"></p>
+                </div>
+                <div class="border border-black p-2 min-h-[50px]">
+                    <strong class="block mb-1">Compromisos de la alumna o el alumno:</strong>
+                    <p id="viewCompromisoAlumno" class="whitespace-pre-line text-slate-800"></p>
+                </div>
+            </div>
+
+            <div class="border border-black p-2 min-h-[45px]">
+                <strong class="block mb-1">Intervención del docente (acciones a implementar):</strong>
+                <p id="viewIntervencion" class="whitespace-pre-line text-slate-800"></p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <div class="border border-black p-2">
+                    <strong class="block mb-1">Falta conforme al Marco para la Convivencia:</strong>
+                    <p id="viewFalta" class="text-slate-800"></p>
+                </div>
+                <div class="border border-black p-2">
+                    <strong class="block mb-1">Acciones formativas:</strong>
+                    <p id="viewAcciones" class="text-slate-800"></p>
+                </div>
+            </div>
+
+            <div class="border border-black p-2 leading-snug">
+                <p><strong>Manifestación de conformidad:</strong> Yo <span id="confTutor" class="underline font-semibold">[NOMBRE DEL TUTOR]</span>, madre, padre, tutor (a) del (la) alumno (a), estoy conforme con la atención brindada por parte de la autoridad escolar en atención a los hechos presentados, toda vez que se me ha informado sobre las acciones realizadas para su oportuna atención.</p>
+            </div>
+
+            <div class="grid grid-cols-3 gap-6 pt-10 text-center text-[10px]">
+                <div class="border-t border-black pt-1 px-2">
+                    <span id="firmTutor" class="font-bold block uppercase text-slate-900">[NOMBRE DEL TUTOR]</span>
+                    <span class="text-slate-600">Nombre y firma del padre, madre o tutor</span>
+                </div>
+                <div class="border-t border-black pt-1 px-2">
+                    <span id="firmDocente" class="font-bold block uppercase text-slate-900">LIC. AARÓN CHAVARRÍA</span>
+                    <span class="text-slate-600">Nombre y firma del docente</span>
+                </div>
+                <div class="border-t border-black pt-1 px-2">
+                    <span id="firmDirector" class="font-bold block uppercase text-slate-900">PROF. DIRECTOR DEL PLANTEL</span>
+                    <span class="text-slate-600">Vo. Bo. de la Dirección del Plantel</span>
+                </div>
+            </div>
+
+
+
+            <div class="text-[10px] text-justify text-slate-700 pt-3 border-t border-slate-400 leading-normal">
+                Se informa que en el presente documento <strong>no se realizarán transferencias de Datos Personales</strong>, salvo aquellas que sea necesario de conformidad con los supuestos contemplados en los artículos 9 y 36 de la Ley Federal de Protección de Datos Personales en Posesión de los Particulares para atender requerimientos, solicitudes, recursos o cumplimientos de información de una autoridad competente, judicial, administrativa, civil, penal, fiscal o de cualquier otra rama del derecho que estén debidamente fundadas y motivadas para lo cual, no se requiere consentimiento de la persona titular.
+            </div>
+
+
+
+
+            <div class="no-print pt-6 flex justify-end gap-3">
+                <button onclick="window.print()" class="bg-slate-900 hover:bg-black text-white font-bold px-6 py-2.5 rounded shadow transition text-sm flex items-center gap-2">
+                    🖨️ Imprimir Formato Oficial
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Script de Control con Botón de Reinicio de Folio -->
+    <script>
+        // ============ SERVICE WORKER REGISTRATION ============
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('./service-worker.js')
+            .then(reg => console.log('✅ Service Worker registrado'))
+            .catch(err => console.log('Service Worker error:', err));
+        }
+
+        // ============ FIREBASE (misma cuenta/sesión que Sistema Escolar) ============
+        const FIREBASE_CONFIG = {
+          apiKey: "AIzaSyAFucnRd_ZB81l4rH7bAeNh3STqL4AN4R4",
+          authDomain: "sistema-escolar-a5c31.firebaseapp.com",
+          databaseURL: "https://sistema-escolar-a5c31-default-rtdb.firebaseio.com",
+          projectId: "sistema-escolar-a5c31",
+          storageBucket: "sistema-escolar-a5c31.firebasestorage.app",
+          messagingSenderId: "234198294318",
+          appId: "1:234198294318:web:a65521e9607753d68664bf"
+        };
+        firebase.initializeApp(FIREBASE_CONFIG);
+        const bitAuth = firebase.auth();
+        const bitDb = firebase.database();
+        let bitUsuarioActual = null; // se llena cuando Firebase confirma la sesión
+
+        // ============ CACHÉ DE FIREBASE PARA CALCULAR FOLIOS ============
+        // Guarda la última copia conocida de "bitacora/{uid}" para poder calcular,
+        // sin ir a la red cada vez, cuál es el folio más alto ya usado en CUALQUIER
+        // dispositivo. Esto es lo que evita que el folio se reinicie si se borran
+        // los datos del sitio en un teléfono: aunque el contador local desaparezca,
+        // el máximo se sigue pudiendo reconstruir desde Firebase.
+        let cacheRemotaBitacora = {};
+        let cacheRemotaCargada = false;
+
+        async function refrescarCacheRemota() {
+          if (!estoyOnline) return;
+          const user = bitUsuarioActual || bitAuth.currentUser;
+          if (!user || !user.email || !user.email.toLowerCase().endsWith('@chavarria.edu.com')) return;
+          try {
+            const snap = await bitDb.ref(`${obtenerEspacioId()}/bitacora`).once('value');
+            cacheRemotaBitacora = snap.val() || {};
+            cacheRemotaCargada = true;
+          } catch (error) {
+            console.error('Error refrescando caché remota de bitácora', error);
+          }
+        }
+
+        // ============ SINCRONIZACIÓN OFFLINE-FIRST ============
+        let estoyOnline = navigator.onLine;
+        const NIVELES_SYNC = ['Primaria', 'Secundaria'];
+
+        window.addEventListener('online', () => {
+          estoyOnline = true;
+          console.log('🟢 Conectado a internet - Sincronizando...');
+          sincronizarConFirebase();
+          descargarDeFirebase();
+        });
+
+        window.addEventListener('offline', () => {
+          estoyOnline = false;
+          console.log('🔴 Sin internet - Guardando en localStorage');
+        });
+
+        // La sesión de Firebase se restaura de forma asíncrona (aunque ya hayas
+        // iniciado sesión en Sistema Escolar, tarda un instante en confirmarse aquí
+        // también). En cuanto se confirma, se intenta sincronizar lo pendiente.
+        bitAuth.onAuthStateChanged(user => {
+          bitUsuarioActual = user;
+          if (user) {
+            migrarBitacoraSiHaceFalta().then(() => {
+              sincronizarConFirebase();
+              descargarDeFirebase();
+            });
+          }
+        });
+
+        // Sube a Firebase, de cada nivel, únicamente las incidencias que aún no se
+        // habían subido (se marcan con "sincronizado: true" tras subir con éxito).
+        // Las que ya están marcadas no se reenvían cada vez, para no gastar
+        // ancho de banda innecesariamente.
+        async function sincronizarConFirebase() {
+          if (!estoyOnline) return;
+          const user = bitUsuarioActual || bitAuth.currentUser;
+          if (!user || !user.email || !user.email.toLowerCase().endsWith('@chavarria.edu.com')) return;
+
+          let huboError = false;
+          for (const nivel of NIVELES_SYNC) {
+            const keyHistorial = claveHistorial(nivel);
+            let historial;
+            try { historial = JSON.parse(localStorage.getItem(keyHistorial)) || []; }
+            catch (e) { continue; }
+
+            const pendientes = historial.filter(item => !item.sincronizado);
+            if (pendientes.length === 0) continue;
+
+            for (const item of pendientes) {
+              try {
+                await bitDb.ref(`${obtenerEspacioId()}/bitacora/${item.id}`).set({
+                  ...item,
+                  sincronizadoEn: new Date().toISOString()
+                });
+                item.sincronizado = true;
+              } catch (error) {
+                console.error('Error sincronizando incidencia', item.id, error);
+                huboError = true;
+              }
+            }
+            localStorage.setItem(keyHistorial, JSON.stringify(historial));
+          }
+
+          if (huboError) {
+            showSyncNotification('⚠️ Algunas incidencias no se pudieron subir. Se reintentará.', 'error');
+          }
+        }
+
+        // Sincroniza solo UNA incidencia recién guardada, de inmediato (sin esperar
+        // al intervalo de 60s ni al próximo evento "online"), para que "guardar" se
+        // sienta instantáneo cuando hay internet.
+        async function sincronizarIncidenciaInmediata(nivel, item) {
+          if (!estoyOnline) return;
+          const user = bitUsuarioActual || bitAuth.currentUser;
+          if (!user || !user.email || !user.email.toLowerCase().endsWith('@chavarria.edu.com')) return;
+          try {
+            await bitDb.ref(`${obtenerEspacioId()}/bitacora/${item.id}`).set({
+              ...item,
+              sincronizadoEn: new Date().toISOString()
+            });
+            const keyHistorial = claveHistorial(nivel);
+            let historial = JSON.parse(localStorage.getItem(keyHistorial)) || [];
+            const idx = historial.findIndex(h => h.id === item.id);
+            if (idx !== -1) {
+              historial[idx].sincronizado = true;
+              localStorage.setItem(keyHistorial, JSON.stringify(historial));
+            }
+          } catch (error) {
+            console.error('Error sincronizando incidencia nueva', error);
+            showSyncNotification('⚠️ Se guardó en este dispositivo, pero no se pudo subir todavía. Se reintentará solo.', 'error');
+          }
+        }
+
+        // Descarga de Firebase las incidencias que se hayan guardado desde OTROS
+        // dispositivos/redes (ej. la registraste en el celular y la quieres ver
+        // en la computadora) y las fusiona con el historial local, sin duplicar
+        // las que ya existen aquí.
+        async function descargarDeFirebase() {
+          if (!estoyOnline) return;
+          const user = bitUsuarioActual || bitAuth.currentUser;
+          if (!user || !user.email || !user.email.toLowerCase().endsWith('@chavarria.edu.com')) return;
+          try {
+            await refrescarCacheRemota();
+            const remotos = cacheRemotaBitacora;
+            let seActualizoNivelVisible = false;
+
+            for (const nivel of NIVELES_SYNC) {
+              const keyHistorial = claveHistorial(nivel);
+              let historial;
+              try { historial = JSON.parse(localStorage.getItem(keyHistorial)) || []; }
+              catch (e) { historial = []; }
+
+              const idsLocales = new Set(historial.map(h => h.id));
+              let huboNuevos = false;
+
+              Object.values(remotos).forEach(item => {
+                if (item.nivel === nivel && !idsLocales.has(item.id)) {
+                  historial.push({ ...item, sincronizado: true });
+                  idsLocales.add(item.id);
+                  huboNuevos = true;
+                }
+              });
+
+              if (huboNuevos) {
+                historial.sort((a, b) => b.id - a.id);
+                localStorage.setItem(keyHistorial, JSON.stringify(historial));
+                if (nivel === nivelActual) seActualizoNivelVisible = true;
+              }
+            }
+
+            if (seActualizoNivelVisible && !document.getElementById('seccionHistorial').classList.contains('hidden')) {
+              renderizarListaHistorial();
+            }
+          } catch (error) {
+            console.error('Error descargando incidencias de Firebase', error);
+          }
+        }
+
+        function showSyncNotification(msg, type = 'success') {
+          const div = document.createElement('div');
+          div.textContent = msg;
+          div.style.cssText = `
+            position: fixed; bottom: 20px; right: 20px; 
+            background: ${type === 'error' ? '#dc2626' : '#16a34a'}; 
+            color: white; padding: 12px 16px; border-radius: 8px; 
+            z-index: 9998; font-weight: 600;
+          `;
+          document.body.appendChild(div);
+          setTimeout(() => div.remove(), 3000);
+        }
+
+        // Sincroniza cada 60 segundos si está online (red de seguridad, por si algo
+        // quedó pendiente: sin internet al guardar, un error momentáneo, etc.)
+        setInterval(() => {
+          if (estoyOnline) {
+            sincronizarConFirebase();
+            descargarDeFirebase();
+          }
+        }, 60000);
+
+        let nivelActual = "Primaria";
+        let cicloActual = calcularCicloEscolarDefault();
+        let edicionManual = false;
+
+        const GRADOS_POR_NIVEL = { "Primaria": ['1°','2°','3°','4°','5°','6°'], "Secundaria": ['1°','2°','3°'] };
+        const GRUPOS_DEFAULT = ['A','B','C','D','E','F'];
+        
+        // Promo video logic
+        function mostrarPromoVideo() {
+          const mostrar = localStorage.getItem('bitacora_mostrar_promo') === 'true';
+          const yaVio = localStorage.getItem('bitacora_promo_visto') === 'true';
+          if (mostrar && !yaVio) {
+            const modal = document.getElementById('promoModal');
+            if (modal) modal.style.display = 'flex';
+            localStorage.setItem('bitacora_promo_visto', 'true');
+          }
+          localStorage.removeItem('bitacora_mostrar_promo');
+        }
+        
+        function cerrarPromoVideo() {
+          const modal = document.getElementById('promoModal');
+          if (modal) modal.style.display = 'none';
+        }
+        
+        // Ejecutar al cargar la página
+        window.addEventListener('load', mostrarPromoVideo);
+        window.addEventListener('load', aplicarPermisosNivel);
+
+        // --- Datos puente recibidos desde el Sistema Escolar (index.html) ---
+        let datosPuente = null;
+        try {
+            datosPuente = JSON.parse(localStorage.getItem('bitacora_puente_datos') || 'null');
+        } catch(e) { datosPuente = null; }
+
+        // Identifica de que escuela/cuenta es cada dato guardado (en Firebase y en la copia
+        // local del dispositivo), para que dos escuelas distintas nunca compartan ni mezclen
+        // su historial de incidencias, aunque usen el mismo telefono o navegador.
+        // Sistema Escolar (index.html) ya calcula esto para sus propios datos (dbBase()) y
+        // lo deja aqui, en el puente, como "espacioId". Si no esta disponible (por ejemplo,
+        // se abrio bitacora.html directo, sin pasar por el Sistema Escolar), se usa el UID
+        // de la cuenta como respaldo, igual que antes de este cambio.
+        function obtenerEspacioId() {
+            // Cada usuario accede SOLO a su propia bitácora privada (su UID)
+            // No usar DB_ROOT compartido por seguridad en modelo SaaS
+            const user = bitUsuarioActual || bitAuth.currentUser;
+            return user ? user.uid : 'sin_cuenta';
+        }
+        function claveHistorial(nivel) {
+            return `historial_incidencias_${obtenerEspacioId()}_${nivel}`;
+        }
+
+        // Antes de este cambio, cada incidencia se guardaba en Firebase bajo
+        // "bitacora/{UID de la cuenta}" -- es decir, por cuenta individual, no por
+        // escuela. Ahora se guarda bajo "bitacora/{espacioId}" (la misma "carpeta"
+        // que usa el resto del Sistema Escolar para esa escuela), para que dos
+        // cuentas de la MISMA escuela vean el mismo historial, y dos escuelas
+        // DISTINTAS nunca vean el historial de la otra.
+        // Esta funcion corre una sola vez por dispositivo: si detecta que la cuenta
+        // actual tenia historial guardado en la ubicacion vieja y la nueva
+        // ubicacion todavia esta vacia, copia los datos automaticamente. Nunca
+        // borra la copia vieja (queda como respaldo).
+        async function migrarBitacoraSiHaceFalta() {
+            if (!estoyOnline) return;
+            const user = bitUsuarioActual || bitAuth.currentUser;
+            if (!user) return;
+            const espacioId = obtenerEspacioId();
+            if (espacioId === user.uid) return; // esta cuenta nunca tuvo una ubicacion distinta que migrar
+            const banderaLocal = `bitacora_migrado_${espacioId}`;
+            if (localStorage.getItem(banderaLocal)) return; // ya se reviso antes en este dispositivo
+            try {
+                const nuevoSnap = await bitDb.ref(`${espacioId}/bitacora`).once('value');
+                if (nuevoSnap.exists()) {
+                    localStorage.setItem(banderaLocal, 'true');
+                    return; // el destino ya tiene datos: no hay nada que migrar ni que sobreescribir
+                }
+                const viejoSnap = await bitDb.ref(`bitacora/${user.uid}`).once('value');
+                const datosViejos = viejoSnap.val();
+                if (datosViejos && Object.keys(datosViejos).length > 0) {
+                    await bitDb.ref(`${espacioId}/bitacora`).set(datosViejos);
+                    showSyncNotification('✅ Tu historial de Bitácora se actualizó a la nueva ubicación, separada por escuela.', 'success');
+                }
+                localStorage.setItem(banderaLocal, 'true');
+            } catch (error) {
+                console.error('Error migrando bitácora a la nueva ubicación', error);
+            }
+        }
+
+        // --- Botón "Volver al Sistema Escolar" inteligente ---
+        // index.html (o bitacora-home.html) deja guardado en localStorage qué otros
+        // módulos tiene la cuenta que entró a la Bitácora. Con eso decidimos a dónde
+        // debe regresar el botón "Volver":
+        //   - Si tiene acceso a Primaria, Secundaria o CheckIn Kids (cualquier
+        //     combinación, incluido el administrador con todo) -> se manda a
+        //     index.html. La interfaz principal ya filtra sola las tarjetas según
+        //     los permisos de cada quien, así que no hace falta distinguir más casos.
+        //   - Si SOLO tiene acceso a Bitácora -> nunca se navega a index.html (ahí
+        //     no vería ningún módulo). En su lugar se pregunta con una emergente y,
+        //     si confirma, simplemente se refresca esta misma página a un estado en
+        //     blanco (lo ya guardado en el historial permanece intacto).
+        //   - Si no hay datos guardados (por ejemplo, se abrió el archivo
+        //     directamente) se conserva el comportamiento original: ir a index.html.
+        function permisosBitacora() {
+            try {
+                return JSON.parse(localStorage.getItem('bitacora_permisos') || 'null');
+            } catch (e) { return null; }
+        }
+
+        // Oculta el selector de nivel (título y botones) por completo cuando la
+        // cuenta solo tiene acceso a UNO de los dos niveles — así ni siquiera puede
+        // ver que existe "Secundaria" si no le corresponde (o viceversa). Si tiene
+        // ambos (como la cuenta del director), o si no hay datos de permisos
+        // disponibles (acceso directo sin pasar por el Sistema Escolar), se deja
+        // el selector tal como estaba, sin restringir nada.
+        function aplicarPermisosNivel() {
+            const permisos = permisosBitacora();
+            if (!permisos) return; // sin información de permisos: comportamiento de siempre
+            const tienePrimaria = !!permisos.primaria;
+            const tieneSecundaria = !!permisos.secundaria;
+            if (tienePrimaria && tieneSecundaria) return; // acceso a ambos: sin cambios
+
+            const bloque = document.getElementById('bloqueSelectorNivel');
+            if (bloque) bloque.style.display = 'none';
+
+            if (tieneSecundaria && !tienePrimaria) {
+                cambiarNivel('Secundaria');
+            } else if (tienePrimaria && !tieneSecundaria) {
+                cambiarNivel('Primaria');
+            }
+            // Si no tiene ninguno de los dos (caso raro, no debería llegar aquí),
+            // se deja Primaria por default sin ocultar nada, para no dejar la
+            // pantalla sin ninguna forma de navegar.
+        }
+
+        function volverAlSistema() {
+            const permisos = permisosBitacora();
+            const tieneOtroAcceso = !permisos || !!(permisos.primaria || permisos.secundaria || permisos.checkin);
+            if (tieneOtroAcceso) {
+                window.location.href = 'index.html';
+                return;
+            }
+            // Cuenta solo-Bitácora: confirmar antes de perder lo que esté sin guardar
+            // en el formulario abierto (lo ya guardado en el historial no se pierde).
+            if (confirm('¿Estás seguro que quieres salir de Bitácora? Asegúrate de guardar antes de salir.')) {
+                window.location.reload();
+            }
+        }
+
+        function calcularCicloEscolarDefault() {
+            const hoy = new Date();
+            const anio = hoy.getFullYear();
+            // El ciclo escolar en México inicia en agosto (mes 8)
+            return (hoy.getMonth() + 1) >= 8 ? `${anio}-${anio + 1}` : `${anio - 1}-${anio}`;
+        }
+
+        // Preserva la posición del cursor al forzar mayúsculas, para no interrumpir la escritura
+        function convertirMayusculas(elemento) {
+            const inicio = elemento.selectionStart;
+            const fin = elemento.selectionEnd;
+            const mayus = elemento.value.toUpperCase();
+            if (mayus !== elemento.value) {
+                elemento.value = mayus;
+                if (inicio !== null && fin !== null) {
+                    elemento.setSelectionRange(inicio, fin);
+                }
+            }
+        }
+
+        function tienePuenteDatos(nivel) {
+            return !!(datosPuente && datosPuente[nivel] && (datosPuente[nivel].escuela || datosPuente[nivel].cct || datosPuente[nivel].docente || datosPuente[nivel].director));
+        }
+
+        function cargarDatosPlantel() {
+            function resolver(nivel, campo, valorDefault) {
+                if (!edicionManual && datosPuente && datosPuente[nivel] && datosPuente[nivel][campo]) {
+                    return String(datosPuente[nivel][campo]).toUpperCase();
+                }
+                const guardado = localStorage.getItem(`${campo}_${obtenerEspacioId()}_${nivel}`);
+                if (guardado) return guardado.toUpperCase();
+                return valorDefault || '';
+            }
+            return {
+                "Primaria": { escuela: resolver('Primaria','escuela'), cct: resolver('Primaria','cct'), docente: resolver('Primaria','docente'), director: resolver('Primaria','director'), turno: resolver('Primaria','turno','VESPERTINO') },
+                "Secundaria": { escuela: resolver('Secundaria','escuela'), cct: resolver('Secundaria','cct'), docente: resolver('Secundaria','docente'), director: resolver('Secundaria','director'), turno: resolver('Secundaria','turno','MATUTINO') }
+            };
+        }
+
+        let plantelPorNivel = cargarDatosPlantel();
+
+        function actualizarAvisoSincronizado() {
+            const sincronizado = !edicionManual && tienePuenteDatos(nivelActual);
+            document.getElementById('avisoSincronizado').classList.toggle('hidden', !sincronizado);
+            document.getElementById('avisoManual').classList.toggle('hidden', sincronizado || edicionManual);
+            ['configEscuela','configCCT','configDocente','configDirector'].forEach(id => {
+                const el = document.getElementById(id);
+                el.readOnly = sincronizado;
+                el.classList.toggle('bg-slate-100', sincronizado);
+                el.classList.toggle('text-slate-600', sincronizado);
+                el.classList.toggle('bg-white', !sincronizado);
+            });
+            document.getElementById('btnToggleEdicion').innerText = edicionManual ? "🔒 Volver a datos automáticos" : "🔓 Editar manualmente";
+        }
+
+        function toggleEdicionManual() {
+            guardarPersonalEnMemoria();
+            edicionManual = !edicionManual;
+            plantelPorNivel = cargarDatosPlantel();
+            document.getElementById('configEscuela').value = plantelPorNivel[nivelActual].escuela;
+            document.getElementById('configCCT').value = plantelPorNivel[nivelActual].cct;
+            document.getElementById('configDocente').value = plantelPorNivel[nivelActual].docente;
+            document.getElementById('configDirector').value = plantelPorNivel[nivelActual].director;
+            document.getElementById('configTurno').value = plantelPorNivel[nivelActual].turno;
+            actualizarAvisoSincronizado();
+        }
+
+        function guardarPersonalEnMemoria() {
+            let esc = document.getElementById('configEscuela').value.toUpperCase();
+            let cct = document.getElementById('configCCT').value.toUpperCase();
+            let doc = document.getElementById('configDocente').value.toUpperCase();
+            let dir = document.getElementById('configDirector').value.toUpperCase();
+            let tur = document.getElementById('configTurno').value.toUpperCase();
+            
+            plantelPorNivel[nivelActual].escuela = esc;
+            plantelPorNivel[nivelActual].cct = cct;
+            plantelPorNivel[nivelActual].docente = doc;
+            plantelPorNivel[nivelActual].director = dir;
+            plantelPorNivel[nivelActual].turno = tur;
+
+            localStorage.setItem(`escuela_${obtenerEspacioId()}_${nivelActual}`, esc);
+            localStorage.setItem(`cct_${obtenerEspacioId()}_${nivelActual}`, cct);
+            localStorage.setItem(`docente_${obtenerEspacioId()}_${nivelActual}`, doc);
+            localStorage.setItem(`director_${obtenerEspacioId()}_${nivelActual}`, dir);
+            localStorage.setItem(`turno_${obtenerEspacioId()}_${nivelActual}`, tur);
+        }
+
+        function actualizarCicloActual() {
+            cicloActual = document.getElementById('configCiclo').value.trim().toUpperCase() || calcularCicloEscolarDefault();
+            localStorage.setItem('ciclo_escolar_actual', cicloActual);
+        }
+
+        function alumnosDelNivel() {
+            if (!datosPuente || !datosPuente[nivelActual]) return [];
+            return datosPuente[nivelActual].alumnos || [];
+        }
+
+        function poblarGradoSelect() {
+            const grados = GRADOS_POR_NIVEL[nivelActual];
+            const sel = document.getElementById('inputGradoSel');
+            sel.innerHTML = grados.map(g => `<option value="${g}">${g}</option>`).join('')
+                + (nivelActual === 'Primaria' ? `<option value="MULTIGRADO">Multigrado</option>` : '');
+            poblarGrupoSelect();
+        }
+
+        function poblarGrupoSelect() {
+            const grado = document.getElementById('inputGradoSel').value;
+            const sel = document.getElementById('inputGrupoSel');
+            if (grado === 'MULTIGRADO') {
+                // No aplica un grupo específico: se deja un solo valor vacío y el
+                // select de grupo se desactiva, en vez de forzar a elegir uno.
+                sel.innerHTML = `<option value="">—</option>`;
+                sel.disabled = true;
+                actualizarListaAlumnos();
+                return;
+            }
+            sel.disabled = false;
+            const alumnos = alumnosDelNivel().filter(a => a.grade === grado);
+            let grupos = [...new Set(alumnos.map(a => a.grupo).filter(Boolean))].sort();
+            if (!grupos.length) grupos = GRUPOS_DEFAULT;
+            sel.innerHTML = grupos.map(g => `<option value="${g}">${g}</option>`).join('');
+            actualizarListaAlumnos();
+        }
+
+        function actualizarListaAlumnos() {
+            const grado = document.getElementById('inputGradoSel').value;
+            const grupo = document.getElementById('inputGrupoSel').value;
+            const alumnos = alumnosDelNivel().filter(a => a.grade === grado && (a.grupo || '') === grupo);
+            const dl = document.getElementById('listaAlumnosDatalist');
+            dl.innerHTML = alumnos.map(a => `<option value="${(a.name||'').toUpperCase()}">`).join('');
+        }
+
+        function autocompletarTutor() {
+            const nombre = document.getElementById('inputAlumno').value.trim().toUpperCase();
+            if (!nombre) return;
+            const grado = document.getElementById('inputGradoSel').value;
+            const grupo = document.getElementById('inputGrupoSel').value;
+            const alumno = alumnosDelNivel().find(a => a.grade === grado && (a.grupo || '') === grupo && (a.name || '').toUpperCase() === nombre);
+            if (alumno) {
+                const tutor = alumno.madreNombre || alumno.padreNombre || alumno.tutorNombre || '';
+                if (tutor) document.getElementById('inputTutor').value = tutor.toUpperCase();
+            }
+        }
+
+        function cambiarNivel(nivel) {
+            guardarPersonalEnMemoria();
+            nivelActual = nivel;
+            plantelPorNivel = cargarDatosPlantel();
+
+            if(nivel === "Primaria") {
+                document.getElementById('btnPrimaria').className = "bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow transition";
+                document.getElementById('btnSecundaria').className = "bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition";
+                document.getElementById('tituloConfigPersonal').innerText = "Configuración del Plantel - Primaria";
+            } else {
+                document.getElementById('btnSecundaria').className = "bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold text-sm shadow transition";
+                document.getElementById('btnPrimaria').className = "bg-white text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-semibold text-sm shadow-sm transition";
+                document.getElementById('tituloConfigPersonal').innerText = "Configuración del Plantel - Secundaria";
+            }
+
+            document.getElementById('configEscuela').value = plantelPorNivel[nivel].escuela;
+            document.getElementById('configCCT').value = plantelPorNivel[nivel].cct;
+            document.getElementById('configDocente').value = plantelPorNivel[nivel].docente;
+            document.getElementById('configDirector').value = plantelPorNivel[nivel].director;
+            document.getElementById('configTurno').value = plantelPorNivel[nivel].turno;
+
+            actualizarAvisoSincronizado();
+            poblarGradoSelect();
+            mostrarFormulario();
+        }
+
+        // Genera las siglas de la escuela para anteponer al folio.
+        // - Nombres propios: iniciales de cada palabra significativa
+        //   (ej. "ESCUELA PRIMARIA BENITO JUÁREZ" -> "BJ").
+        // - Secundarias técnicas/generales numeradas: usa "ST" + el número
+        //   completo en vez de solo iniciales (ej. "Secundaria Técnica 32" -> "ST32"),
+        //   para que no se confundan planteles distintos con el mismo folio.
+        function calcularSiglaEscuela(nivel, nombreOverride) {
+            const nombreOriginal = (typeof nombreOverride === 'string' ? nombreOverride : (plantelPorNivel[nivel].escuela || '')).trim();
+            if (!nombreOriginal) return nivel === "Primaria" ? "PRIM" : "SEC";
+
+            const nombreLimpio = nombreOriginal.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+            if (nombreLimpio.includes("tecnica") || nombreLimpio.includes("secundaria")) {
+                const matchNumero = nombreLimpio.match(/\d+/);
+                if (matchNumero) return "ST" + matchNumero[0];
+            }
+
+            const palabrasExcluidas = ["escuela","primaria","secundaria","tecnica","general","telesecundaria","el","la","los","las","de","del","y","a","en"];
+            const palabras = nombreLimpio.split(/\s+/);
+            let sigla = "";
+            for (const palabra of palabras) {
+                if (palabra && !palabrasExcluidas.includes(palabra)) {
+                    sigla += /\d/.test(palabra) ? palabra.toUpperCase() : palabra[0].toUpperCase();
+                }
+            }
+            if (sigla.length < 2) sigla = nivel === "Primaria" ? "PRIM" : "SEC";
+            return sigla.slice(0, 6);
+        }
+
+        // Saca el número consecutivo de un folio ya formado, ej. "MHC-2026-2027/0005" -> 5
+        function extraerNumeroFolio(folioStr) {
+            const m = /\/(\d+)\s*$/.exec(folioStr || '');
+            return m ? parseInt(m[1], 10) : 0;
+        }
+
+        // Calcula el folio más alto ya usado para esta sigla+nivel+ciclo, revisando
+        // TRES fuentes (y quedándose con la mayor, nunca con la más reciente a
+        // secas): el historial guardado en este dispositivo, la última copia
+        // conocida de Firebase (que incluye lo subido desde otros dispositivos),
+        // y el contador local viejo (por compatibilidad con instalaciones previas).
+        // Así, aunque una de las tres esté vacía o desactualizada, el folio nunca
+        // retrocede.
+        function calcularMaxFolioExistente(sigla, nivel, ciclo) {
+            return calcularMaxFolioSinContador(sigla, nivel, ciclo, true);
+        }
+
+        // Igual que calcularMaxFolioExistente, pero permite excluir el contador local
+        // de la cuenta (incluirContador=false). Se usa al eliminar una incidencia,
+        // para saber si el folio borrado era realmente el más alto que quedó
+        // registrado en el historial/Firebase, sin que el contador local (que
+        // todavía no se ha actualizado) distorsione la respuesta.
+        function calcularMaxFolioSinContador(sigla, nivel, ciclo, incluirContador) {
+            let max = 0;
+            const prefijo = `${sigla}-${ciclo}/`;
+
+            try {
+                const hist = JSON.parse(localStorage.getItem(claveHistorial(nivel))) || [];
+                hist.forEach(item => {
+                    if (item.folio && item.folio.startsWith(prefijo)) {
+                        max = Math.max(max, extraerNumeroFolio(item.folio));
+                    }
+                });
+            } catch (e) {}
+
+            Object.values(cacheRemotaBitacora || {}).forEach(item => {
+                if (item.nivel === nivel && item.folio && item.folio.startsWith(prefijo)) {
+                    max = Math.max(max, extraerNumeroFolio(item.folio));
+                }
+            });
+
+            if (incluirContador) {
+                const claveContador = `contador_folio_${obtenerEspacioId()}_${sigla}_${nivel}_${ciclo}`;
+                const contadorLocal = parseInt(localStorage.getItem(claveContador)) || 0;
+                max = Math.max(max, contadorLocal);
+            }
+
+            return max;
+        }
+
+        // Deduce el ciclo escolar de una incidencia ya guardada. Las nuevas lo
+        // traen explícito (campo "ciclo"); para incidencias guardadas antes de
+        // este cambio, se extrae del propio folio como respaldo.
+        function obtenerCicloDeIncidencia(item) {
+            if (item && item.ciclo) return item.ciclo;
+            const m = /(\d{4}-\d{4})\/\d+\s*$/.exec((item && item.folio) || '');
+            return m ? m[1] : cicloActual;
+        }
+
+        async function generarFolio(ciclo) {
+            let sigla = calcularSiglaEscuela(nivelActual);
+            // Si en esta sesión todavía no se ha traído nada de Firebase (ej. se
+            // acaba de abrir la app y aún no corre el sync automático), se hace un
+            // último intento por refrescar la caché ANTES de calcular el folio,
+            // para no arriesgarse a repetir un número ya usado en otro dispositivo.
+            if (!cacheRemotaCargada) {
+                await refrescarCacheRemota();
+            }
+            let clave = `contador_folio_${obtenerEspacioId()}_${sigla}_${nivelActual}_${ciclo}`;
+            let num = calcularMaxFolioExistente(sigla, nivelActual, ciclo) + 1;
+            localStorage.setItem(clave, num);
+            return `${sigla}-${ciclo}/${String(num).padStart(4, '0')}`;
+        }
+
+        function reiniciarFolioActual() {
+            let sigla = calcularSiglaEscuela(nivelActual);
+            let clave = `contador_folio_${obtenerEspacioId()}_${sigla}_${nivelActual}_${cicloActual}`;
+            if(confirm(`¿Estás seguro de reiniciar el contador de folios de ${nivelActual} (ciclo ${cicloActual}) para que el próximo comience en 1?\n\nOjo: si ya existen incidencias guardadas con folios más altos (en este dispositivo o en Firebase), el sistema los detectará y NO permitirá que el folio retroceda por debajo de ellos.`)) {
+                localStorage.setItem(clave, 0);
+                alert("Contador local reiniciado. El próximo folio será el siguiente al más alto que el sistema encuentre guardado (local o en Firebase).");
+            }
+        }
+
+        // Permite corregir a mano cuál fue el último folio realmente usado (por
+        // ejemplo, si un reporte se hizo en papel, o si por algún motivo no quedó
+        // sincronizado). El PRÓXIMO folio generado será éste + 1.
+        function fijarUltimoFolioUsado() {
+            let sigla = calcularSiglaEscuela(nivelActual);
+            const actual = calcularMaxFolioExistente(sigla, nivelActual, cicloActual);
+            const entrada = prompt(`Escribe el NÚMERO del último folio realmente usado para ${nivelActual} (ciclo ${cicloActual}).\n\nEj. si el último folio fue ${sigla}-${cicloActual}/0005, escribe: 5\n\nEl sistema detectó actualmente: ${actual}`, actual);
+            if (entrada === null) return;
+            const num = parseInt(entrada, 10);
+            if (isNaN(num) || num < 0) { alert('Escribe solo un número, por ejemplo: 5'); return; }
+            const clave = `contador_folio_${obtenerEspacioId()}_${sigla}_${nivelActual}_${cicloActual}`;
+            localStorage.setItem(clave, num);
+            alert(`Listo. El próximo folio será ${sigla}-${cicloActual}/${String(num + 1).padStart(4, '0')}.`);
+        }
+
+        async function guardarYMostrarReporte() {
+            const btnGuardar = document.querySelector('#seccionFormulario button[onclick="guardarYMostrarReporte()"]');
+            if (btnGuardar) { btnGuardar.disabled = true; btnGuardar.innerText = '⏳ Guardando...'; }
+
+            guardarPersonalEnMemoria();
+
+            const selectAsunto = document.getElementById('inputAsunto');
+            const textoAsunto = selectAsunto.options[selectAsunto.selectedIndex].text;
+
+            const gradoSel = document.getElementById('inputGradoSel').value;
+            const grupoSel = document.getElementById('inputGrupoSel').value;
+            const esMultigrado = gradoSel === 'MULTIGRADO';
+            const folio = await generarFolio(cicloActual);
+            const datos = {
+                id: Date.now(),
+                nivel: nivelActual,
+                escuela: document.getElementById('configEscuela').value.toUpperCase(),
+                cct: document.getElementById('configCCT').value.toUpperCase(),
+                alumno: document.getElementById('inputAlumno').value.toUpperCase() || (esMultigrado ? 'SIN INCIDENCIAS' : 'SIN NOMBRE'),
+                tutor: document.getElementById('inputTutor').value.toUpperCase() || 'NO ESPECIFICADO',
+                docente: document.getElementById('configDocente').value.toUpperCase(),
+                director: document.getElementById('configDirector').value.toUpperCase(),
+                turno: document.getElementById('configTurno').value.toUpperCase(),
+                grado: esMultigrado ? 'MULTIGRADO' : `${gradoSel} GRUPO ${grupoSel}`,
+                asunto: textoAsunto.toUpperCase(),
+                fecha: document.getElementById('inputFecha').value,
+                narrativa: document.getElementById('inputNarrativa').value.toUpperCase(),
+                compTutor: document.getElementById('inputCompromisoTutor').value.toUpperCase(),
+                compAlumno: document.getElementById('inputCompromisoAlumno').value.toUpperCase(),
+                intervencion: document.getElementById('inputIntervencion').value.toUpperCase(),
+                falta: document.getElementById('inputFalta').value.toUpperCase(),
+                acciones: document.getElementById('inputAcciones').value.toUpperCase(),
+                ciclo: cicloActual,
+                folio: folio
+            };
+
+            let keyHistorial = claveHistorial(nivelActual);
+            let historial = JSON.parse(localStorage.getItem(keyHistorial)) || [];
+            historial.unshift(datos);
+            localStorage.setItem(keyHistorial, JSON.stringify(historial));
+            sincronizarIncidenciaInmediata(nivelActual, datos);
+
+            if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.innerText = '💾 Guardar en Historial y Generar Formato Oficial'; }
+            renderizarReporte(datos);
+        }
+
+        function renderizarReporte(datos) {
+            document.getElementById('lblEscuela').innerText = datos.escuela;
+            document.getElementById('lblCCT').innerText = datos.cct;
+            document.getElementById('lblTurno').innerText = datos.turno || '---';
+            document.getElementById('lblFolio').innerText = "FOLIO: " + datos.folio;
+            document.getElementById('viewAlumno').innerText = datos.alumno;
+            document.getElementById('viewTutor').innerText = datos.tutor;
+            document.getElementById('viewGrado').innerText = datos.grado;
+            document.getElementById('viewFecha').innerText = datos.fecha;
+            document.getElementById('viewAsunto').innerText = datos.asunto;
+            document.getElementById('viewNarrativa').innerText = datos.narrativa;
+            document.getElementById('viewCompromisoTutor').innerText = datos.compTutor;
+            document.getElementById('viewCompromisoAlumno').innerText = datos.compAlumno;
+            document.getElementById('viewIntervencion').innerText = datos.intervencion;
+            document.getElementById('viewFalta').innerText = datos.falta;
+            document.getElementById('viewAcciones').innerText = datos.acciones;
+            
+            document.getElementById('confTutor').innerText = datos.tutor;
+            document.getElementById('firmTutor').innerText = datos.tutor;
+            document.getElementById('firmDocente').innerText = datos.docente;
+            document.getElementById('firmDirector').innerText = datos.director;
+
+            document.getElementById('seccionFormulario').classList.add('hidden');
+            document.getElementById('seccionHistorial').classList.add('hidden');
+            document.getElementById('seccionConfig').classList.add('no-print');
+            document.getElementById('seccionReporte').classList.remove('hidden');
+        }
+
+        function mostrarFormulario() {
+            document.getElementById('seccionReporte').classList.add('hidden');
+            document.getElementById('seccionHistorial').classList.add('hidden');
+            document.getElementById('seccionFormulario').classList.remove('hidden');
+            document.getElementById('seccionConfig').classList.remove('hidden');
+            // Cada vez que se abre el formulario (Nueva Incidencia, o volver desde
+            // el reporte ya guardado) la fecha vuelve a "hoy" por default, para que
+            // no se quede pegada la fecha del último reporte y evitar que se guarde
+            // sin querer una incidencia con la fecha equivocada.
+            document.getElementById('inputFecha').valueAsDate = new Date();
+        }
+
+        function mostrarHistorial() {
+            document.getElementById('seccionFormulario').classList.add('hidden');
+            document.getElementById('seccionReporte').classList.add('hidden');
+            document.getElementById('seccionHistorial').classList.remove('hidden');
+            document.getElementById('seccionConfig').classList.add('hidden');
+
+            renderizarListaHistorial();
+            // Al abrir el historial, intenta traer de inmediato lo que se haya
+            // guardado desde otro dispositivo/red (celular, otra compu, etc.).
+            descargarDeFirebase();
+        }
+
+        function renderizarListaHistorial() {
+            document.getElementById('lblNivelHistorial').innerText = nivelActual;
+            let keyHistorial = claveHistorial(nivelActual);
+            let historial = JSON.parse(localStorage.getItem(keyHistorial)) || [];
+            let contenedor = document.getElementById('listaHistorial');
+
+            if(historial.length === 0) {
+                contenedor.innerHTML = `<p class="text-slate-500 text-sm p-4 bg-slate-50 rounded border text-center">No hay incidencias guardadas para ${nivelActual}.</p>`;
+                return;
+            }
+
+            let html = "";
+            historial.forEach((item, index) => {
+                const estadoSync = item.sincronizado
+                    ? `<span class="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded" title="Ya está respaldado en el servidor">☁️ En línea</span>`
+                    : `<span class="inline-block bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded" title="Solo está guardado en este dispositivo por ahora">⏳ Solo local</span>`;
+                html += `
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-300 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="inline-block bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded">${item.folio}</span>
+                                ${estadoSync}
+                            </div>
+                            <h4 class="font-bold text-sm text-slate-900">${item.alumno}</h4>
+                            <p class="text-xs text-slate-600"><strong>Asunto:</strong> ${item.asunto} | <strong>Fecha:</strong> ${item.fecha}</p>
+                        </div>
+                        <div class="flex gap-2 w-full md:w-auto">
+                            <button onclick='verIncidenciaGuardada(${index})' class="flex-1 md:flex-none bg-slate-800 text-white px-3 py-1.5 rounded text-xs font-bold shadow">👁️ Ver / Imprimir</button>
+                            <button onclick='eliminarIncidencia(${index})' class="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            });
+            contenedor.innerHTML = html;
+        }
+
+        function verIncidenciaGuardada(index) {
+            let keyHistorial = claveHistorial(nivelActual);
+            let historial = JSON.parse(localStorage.getItem(keyHistorial)) || [];
+            if(historial[index]) {
+                renderizarReporte(historial[index]);
+            }
+        }
+
+        function eliminarIncidencia(index) {
+            if(confirm("¿Estás seguro de eliminar este registro del historial local?")) {
+                let keyHistorial = claveHistorial(nivelActual);
+                let historial = JSON.parse(localStorage.getItem(keyHistorial)) || [];
+                const eliminado = historial[index];
+                historial.splice(index, 1);
+                localStorage.setItem(keyHistorial, JSON.stringify(historial));
+                // También se borra de Firebase, si ya se había subido (o si hay
+                // internet en este momento), para que no quede huérfano allá.
+                const user = bitUsuarioActual || bitAuth.currentUser;
+                if (eliminado && user) {
+                    bitDb.ref(`${obtenerEspacioId()}/bitacora/${eliminado.id}`).remove().catch(()=>{});
+                }
+                // También se quita de la caché en memoria (si estaba ahí), para que
+                // el siguiente cálculo de folio no la siga contando.
+                if (eliminado && cacheRemotaBitacora && cacheRemotaBitacora[eliminado.id]) {
+                    delete cacheRemotaBitacora[eliminado.id];
+                }
+                // Si la incidencia borrada era la de folio MÁS ALTO ya guardado para
+                // su sigla/nivel/ciclo (es decir, nadie más generó un folio mayor
+                // después de ella), se libera automáticamente su número: la próxima
+                // incidencia que guardes reutilizará ese folio en vez de saltarlo.
+                // Si en cambio ya existe algo con un folio igual o mayor guardado en
+                // otro lado, no se toca el contador, para evitar que dos incidencias
+                // terminen con el mismo folio.
+                if (eliminado && eliminado.folio) {
+                    const siglaItem = calcularSiglaEscuela(eliminado.nivel, eliminado.escuela);
+                    const cicloItem = obtenerCicloDeIncidencia(eliminado);
+                    const numItem = extraerNumeroFolio(eliminado.folio);
+                    const maxSinContador = calcularMaxFolioSinContador(siglaItem, eliminado.nivel, cicloItem, false);
+                    if (numItem > maxSinContador) {
+                        const claveContador = `contador_folio_${siglaItem}_${eliminado.nivel}_${cicloItem}`;
+                        localStorage.setItem(claveContador, maxSinContador);
+                    }
+                }
+                mostrarHistorial();
+            }
+        }
+
+        window.onload = () => {
+            document.getElementById('inputFecha').valueAsDate = new Date();
+
+            cicloActual = localStorage.getItem('ciclo_escolar_actual') || calcularCicloEscolarDefault();
+            document.getElementById('configCiclo').value = cicloActual;
+
+            const nivelSugerido = localStorage.getItem('bitacora_nivel_sugerido');
+            const nivelInicial = (nivelSugerido === 'Secundaria') ? 'Secundaria' : 'Primaria';
+
+            if (nivelInicial === 'Secundaria') {
+                cambiarNivel('Secundaria');
+            } else {
+                document.getElementById('configEscuela').value = plantelPorNivel["Primaria"].escuela;
+                document.getElementById('configCCT').value = plantelPorNivel["Primaria"].cct;
+                document.getElementById('configDocente').value = plantelPorNivel["Primaria"].docente;
+                document.getElementById('configDirector').value = plantelPorNivel["Primaria"].director;
+                document.getElementById('configTurno').value = plantelPorNivel["Primaria"].turno;
+                actualizarAvisoSincronizado();
+                poblarGradoSelect();
+            }
+        }
+   
+
+
+
+
+
+
+// Función para cargar ejemplos de llenado oficial
+function cargarEjemplo(tipo) {
+    if (tipo === 'accidente') {
+        document.getElementById('inputAsunto').value = "ACCIDENTE ESCOLAR";
+        document.getElementById('inputNarrativa').value = "El día 22 de octubre de 2024 siendo las 14:30 horas en el local que ocupa el patio principal del plantel educativo, el alumno Pedro Pérez Álvarez quien cursa en el grupo 5°A se golpeo en su pierna derecha a la altura de la rodilla mientras se dirigía a recoger un balón dentro de una actividad en la clase de Educación Física. El profesor titular del grupo Juan Fernández Jiménez junto con la profesora de educación física Nadia Bolaños Cárdenas al ocurrir la caída del menor, se acercan a auxiliarlo, levantándose el menor sin requerir algún apoyo. Acto seguido, siendo las 14:35 horas el profesor titular del grupo realiza llamada al número telefónico de la madre del menor, la Sra. Danae López Álvarez, informándole sobre lo ocurrido y solicitando acuda al plantel educativo.\n\nSiendo las 15:00 hrs. se presenta al plantel educativo la madre del menor y el profesor titular de grupo le informa sobre lo acontecido y le sugiere la activación del seguro médico escolar Va Segur@, ella tras revisar el golpe en la pierna de su hijo y preguntarle sobre las molestias que siente, determina que no es su deseo activar el seguro médico escolar Va segur@, quedando por escrito en la bitácora escolar. Pese a ello, el profesor titular de grupo le notifica, que cuenta con 72 hrs. para poder realizar la activación, siempre y cuando el menor no haya sido valorado por algún médico previamente.";
+        document.getElementById('inputCompromisoTutor').value = "Estoy enterada de la caída de mi hijo y sobre la sugerencia de la activación del seguro médico escolar, pero no deseo la activación de dicho seguro. Notificaré al profesor sobre el estado de salud de mi hijo. (escrito por la madre de familia).";
+        document.getElementById('inputCompromisoAlumno').value = "Me comprometo a tener más cuidado durante las actividades de Educación Física y a avisar de inmediato a mi profesor(a) si llego a sentir alguna molestia.";
+        document.getElementById('inputIntervencion').value = "Notificación por parte del profesor titular de grupo a la madre del menor sobre los ocurrido (llamada telefónica y de forma presencial), además que cuenta hasta con 72 hrs. para activación del seguro escolar. Acuerdo con la madre de familia para envío de actividades escolares en caso de ser necesario.";
+        document.getElementById('inputFalta').value = "N/A (Accidente escolar fortuito)";
+        document.getElementById('inputAcciones').value = "Sugerencia de activación del seguro médico escolar Va Segur@ (rechazada por la madre bajo su responsabilidad, notificando el plazo de 72 horas).";
+    } 
+    else if (tipo === 'retardo') {
+        document.getElementById('inputAsunto').value = "RETARDO EN RECOGER AL ALUMNO AL TÉRMINO DE LA JORNADA ESCOLAR";
+        document.getElementById('inputNarrativa').value = "El día 22 de octubre de 2024 siendo las 18:45 horas en el local que ocupa la dirección del plantel educativo, el profesor titular del grupo Andrés Solares Figueroa realiza llamada telefónica a la Sra. Nataly Barroso Gutiérrez para solicitarle acudir al plantel para recoger a su hija Ximena Flores Barroso quien cursa en el grupo 2°A, refiriendo la madre de la menor que se retraso en recoger a su hija por una cita médica que tuvo pero que no tardaba ya en llegar a recogerla en el plantel. Por su parte, la Directora del plantel Profra. Elizabeth Valle Telésforo, dio aviso vía telefónica a la supervisora de la zona escolar No. 411.\n\nSiendo las 19:05 horas se presenta en la dirección del plantel la Sra. Nataly Barroso Gutiérrez portando la credencial vigente de las personas autorizadas responsables para recoger al educando. El profesor titular del grupo le informa sobre la importancia de recoger a la menor de forma puntual al término de la jornada escolar puesto que ya acumula dos retardos en un mes y a la acumulación de otro retardo más, se procederá conforme lo estipulado en el 'Protocolo para el ingreso y entrega de alumnos de Educación Básica en la Ciudad de México'.";
+        document.getElementById('inputCompromisoTutor').value = "Estoy enterada de la importancia de recoger a mi hija de forma puntual al término de la jornada escolar y me comprometo a ya no acumular más retardos al recogerla (escrito por la madre de familia).";
+        document.getElementById('inputCompromisoAlumno').value = "Me comprometo a esperar en el lugar indicado por mi profesor(a) mientras llega la persona que me recoge.";
+        document.getElementById('inputIntervencion').value = "Notificación por parte del profesor titular de grupo a la madre de la menor (llamada telefónica y de forma presencial) sobre la importancia de recoger de forma puntual a su hija. Asimismo, se hizo hincapié de que en el caso de reincidencia se procederá conforme al 'Protocolo para el ingreso y entrega de alumnos de Educación Básica en la Ciudad de México'. La directora del plantel notificó vía telefónica a la Supervisora de la Zona Escolar que la madre de familia ya acudió a recoger a la menor.";
+        document.getElementById('inputFalta').value = "Acumulación de retardos al término de la jornada escolar.";
+        document.getElementById('inputAcciones').value = "Llamado de atención verbal e informativo sobre el protocolo de entrega de alumnos de Educación Básica.";
+    } 
+    else if (tipo === 'disruptiva') {
+        document.getElementById('inputAsunto').value = "CONDUCTA DISRUPTIVA";
+        document.getElementById('inputNarrativa').value = "El día 21 de octubre de 2024 siendo aproximadamente las 17:30 horas en el local que ocupa el aula Número 18 correspondiente al grupo 6°A del plantel educativo, se acerca al escritorio del profesor titular de grupo, el alumno Heliud Martínez López para referir sobre una situación que tuvo con su compañero Kevin Hernández Fernández. A decir del alumno Heliud refiere: 'Ahorita mi compañero Kevin me pasó a pegar muy fuerte con su mano en la cabeza, yo estaba resolviendo la actividad que nos dejó y cuando él se levantó de su lugar para ir al baño, pasó a pegarme. Ahorita me duele mucho la cabeza, pero además no es la primera vez que me pega, sólo que yo no le había comentado a usted de las otras veces'.\n\nPor lo citado anteriormente, el profesor titular del grupo procede a llamar vía telefónica a la mamá del alumno Heliud Martínez López, Sra. Nadia Martínez López informando sobre la molestia del dolor de cabeza del menor y solicitándole acudir al plantel educativo. Posteriormente, el profesor titular de grupo realiza una investigación con los alumnos del grupo 6°A para preguntar si alguno se percató sobre lo ocurrido con su compañero Heliud y Kevin, a lo que cuatro alumnos (as) refirieron lo siguiente: 'Cuando Kevin se levantó de su lugar pasó a pegarle en la cabeza a Heliud'.\n\nEnseguida, se realiza llamada telefónica a la Sra. Blanca Fernández Andrade madre del alumno Kevin Hernández Fernández solicitando su presencia en el plantel educativo para tratar asuntos relacionados con la conducta del menor. Al termino de lo anterior, el profesor titular del grupo notificó lo anteriormente descrito a la Directora del plantel.\n\nHabiendo llegado al plantel educativo las madres de familia de los dos menores y siendo las 18:05 horas, reunidos en el local que ocupa la Dirección del plantel, el profesor titular de grupo refiere a ambas mamás sobre lo sucedido en el aula con sus hijos, llegando a los acuerdos aquí mismo descritos.";
+        document.getElementById('inputCompromisoTutor').value = "Yo Blanca Fernández Andrade, mamá del alumno Kevin, me comprometo a hablar con mi hijo en casa para que no se vuelva a presentar una mala conducta ni golpes a sus compañeros, así como a vigilar el cumplimiento de la actividad de tríptico informativo y continuar en comunicación permanente.\n\nYo Nadia Martínez López, mamá del alumno Heliud, me comprometo a hablar con mi hijo para que informe de manera inmediata ante cualquier incidencia, y notificar sobre su estado de salud.";
+        document.getElementById('inputCompromisoAlumno').value = "Yo Kevin me comprometo a no volver a golpear a mis compañeros y a pedir disculpas por lo ocurrido.\n\nYo Heliud me comprometo a informar de inmediato a mi profesor(a) ante cualquier situación similar que se presente.";
+        document.getElementById('inputIntervencion').value = "Notificación a las madres de familia, reunión en dirección, levantamiento de compromisos por escrito y seguimiento a la acción formativa del alumno.";
+        document.getElementById('inputFalta').value = "Empujar, golpear o incurrir en conductas que conlleven a agresiones físicas o similares.";
+        document.getElementById('inputAcciones').value = "1. Reunión entre el alumno, docente y madre de familia para generar compromiso por escrito, en reconocimiento del impacto de su conducta.\n2. Como actividad extracurricular el alumno Kevin Hernández Fernández debe entregar al profesor titular de grupo un tríptico informativo tamaño cartulina sobre 'La convivencia sana y pacífica en el aula' para el día 04 de noviembre.";
+    }
+    // Aplica el formato de mayúsculas a todos los campos recién llenados
+    ['inputNarrativa','inputCompromisoTutor','inputCompromisoAlumno','inputIntervencion','inputFalta','inputAcciones'].forEach(id => {
+        const el = document.getElementById(id);
+        el.value = el.value.toUpperCase();
+    });
+}
+
+
+
+
+
+
+
+
+
+
+
+ </script>
+
+</body>
+
+<div class="no-print" style="text-align: center; font-weight: bold; margin-top: 20px; transition: transform 0.3s; cursor: pointer;" 
+     onmouseover="this.style.transform='scale(1.1)'; this.style.color='#007bff';" 
+     onmouseout="this.style.transform='scale(1)'; this.style.color='black';">
+    CHAVARRÍA PRODUCCIONES
+</div>
+
+</html>

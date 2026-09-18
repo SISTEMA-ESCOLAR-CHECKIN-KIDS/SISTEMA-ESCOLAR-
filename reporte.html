@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Boleta de evaluación</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { overflow-x: hidden; max-width: 100vw; }
+body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #f9fafb; color: #1f2937; }
+main { max-width: 640px; width: 100%; margin: 0 auto; padding: 16px; }
+.center-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+.card { background: #fff; border-radius: 14px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 12px; width: 100%; min-width: 0; }
+.boleta-sheet { font-size: 10px; }
+.boleta-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; margin-bottom: 10px; }
+.boleta-header .badge-circle { width: 34px; height: 34px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 8px; }
+.boleta-header .center-text { text-align: center; flex: 1; padding: 0 4px; }
+.boleta-header .center-text p { line-height: 1.3; }
+.boleta-sheet table { width: 100%; border-collapse: collapse; font-size: 9px; }
+.boleta-sheet table th, .boleta-sheet table td { border: 1px solid #d1d5db; padding: 4px; text-align: center; }
+.boleta-sheet .info-block { margin-bottom: 8px; }
+.boleta-sheet .info-block p.label { color: #9ca3af; font-size: 9px; }
+.boleta-sheet .info-block p.value { font-weight: 600; }
+.side-boxes { width: 90px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
+.side-boxes .box { border: 1px solid #d1d5db; border-radius: 6px; padding: 4px; text-align: center; background: #fefce8; }
+.side-boxes .box p.l { font-size: 8px; color: #9ca3af; }
+.side-boxes .box p.v { font-weight: 700; }
+.btn { display: block; width: 100%; padding: 12px; border: none; border-radius: 10px; font-weight: 700; font-size: 0.95em; cursor: pointer; margin-top: 12px; }
+.btn-dark { background: #1f2937; color: #fff; }
+.msg-icon { font-size: 2.4em; margin-bottom: 10px; }
+.msg-title { font-weight: 700; font-size: 1.1em; margin-bottom: 6px; }
+.msg-sub { color: #6b7280; font-size: 0.9em; }
+@media print { .no-print { display: none !important; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const DB_ROOT = 'usuarios'; // SaaS: cada usuario su carpeta privada
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAFucnRd_ZB81l4rH7bAeNh3STqL4AN4R4",
+  authDomain: "sistema-escolar-a5c31.firebaseapp.com",
+  databaseURL: "https://sistema-escolar-a5c31-default-rtdb.firebaseio.com",
+  projectId: "sistema-escolar-a5c31",
+  storageBucket: "sistema-escolar-a5c31.firebasestorage.app",
+  messagingSenderId: "234198294318",
+  appId: "1:234198294318:web:a65521e9607753d68664bf"
+};
+const MATERIAS = ['Lenguajes','Saberes y Pensamiento Científico','Ética, Naturaleza y Sociedades','De lo Humano y lo Comunitario'];
+const PERIODOS_LABEL = ['1er','2do','3er'];
+
+const app = document.getElementById('app');
+
+function renderMessage(icon, title, sub) {
+  app.innerHTML = `<div class="center-screen"><div>
+    <p class="msg-icon">${icon}</p>
+    <p class="msg-title">${title}</p>
+    <p class="msg-sub">${sub}</p>
+  </div></div>`;
+}
+
+function calcularEdad(fechaNacimiento, curp) {
+  let birthDate = null;
+  if (fechaNacimiento) {
+    birthDate = new Date(fechaNacimiento + 'T00:00:00');
+  } else if (curp && curp.length >= 10) {
+    const yy = curp.substring(4,6), mm = curp.substring(6,8), dd = curp.substring(8,10);
+    if (/^\d{2}$/.test(yy) && /^\d{2}$/.test(mm) && /^\d{2}$/.test(dd)) {
+      const yearNum = parseInt(yy,10);
+      const century = yearNum <= (new Date().getFullYear()%100) ? 2000 : 1900;
+      birthDate = new Date(century+yearNum, parseInt(mm,10)-1, parseInt(dd,10));
+    }
+  }
+  if (!birthDate || isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m===0 && today.getDate() < birthDate.getDate())) age--;
+  return (age>=0 && age<25) ? age : null;
+}
+function subjectAverage(s, m) {
+  const vals = (s.grades && s.grades[m] || []).filter(v => typeof v === 'number');
+  return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+}
+function studentAverage(s) {
+  const vals = [];
+  MATERIAS.forEach(m => (s.grades && s.grades[m] || []).forEach(v => { if (typeof v === 'number') vals.push(v); }));
+  return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+}
+
+function renderBoleta(s) {
+  const avg = studentAverage(s);
+  const edad = calcularEdad(s.fechaNacimiento, s.curp);
+  let html = `<main>
+  <div class="card boleta-sheet" id="boletaSheet">
+  <div class="boleta-header">
+  <div style="width:56px;flex-shrink:0;text-align:center;">
+  <div class="badge-circle" style="background:#1f2937;margin:0 auto;">SEP</div>
+  <p style="font-size:7px;color:#9ca3af;margin-top:4px;">Secretaría de Educación Pública</p>
+  </div>
+  <div class="center-text">
+  <p style="font-weight:700;font-size:10px;">SISTEMA EDUCATIVO NACIONAL</p>
+  <p style="font-weight:700;font-size:10px;">JALISCO</p>
+  <p style="font-weight:700;font-size:10px;margin-top:2px;">BOLETA DE EVALUACIÓN</p>
+  <p style="font-size:9px;color:#6b7280;margin-top:2px;">${s.grade || ''} GRADO DE EDUCACIÓN PRIMARIA</p>
+  <p style="font-size:9px;color:#6b7280;">CICLO ESCOLAR ${s.cicloEscolar || ''}</p>
+  </div>
+  <div style="width:56px;flex-shrink:0;text-align:center;">
+  <div class="badge-circle" style="background:#9d174d;margin:0 auto;">JAL</div>
+  <p style="font-size:7px;color:#9ca3af;margin-top:4px;">Gobierno del Estado</p>
+  </div>
+  </div>
+  <div class="info-block">
+  <p class="label">NOMBRE(S) Y APELLIDOS DE LA ALUMNA O EL ALUMNO:</p>
+  <p class="value">${s.name || '—'}</p>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:8px;">
+  <div><p class="label">CURP</p><p class="value">${s.curp||'—'}</p></div>
+  <div><p class="label">MATRÍCULA</p><p class="value">${s.matricula||'—'}</p></div>
+  <div><p class="label">TURNO / GRUPO</p><p class="value">${s.turno||'—'} · ${s.grupo||'—'}</p></div>
+  <div><p class="label">EDAD</p><p class="value">${edad!==null?edad+' años':'—'}</p></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:8px;">
+  <div><p class="label">NOMBRE DE LA ESCUELA</p><p class="value">${(s.schoolInfo && s.schoolInfo.nombre)||'—'}</p></div>
+  <div><p class="label">CCT</p><p class="value">${(s.schoolInfo && s.schoolInfo.cct)||'—'}</p></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;">
+  <table style="flex:1;">
+  <thead><tr style="background:#fefce8;"><th style="width:50px;">PERIODO</th>${MATERIAS.map(m=>`<th>${m}</th>`).join('')}</tr></thead>
+  <tbody>
+  ${PERIODOS_LABEL.map((lbl,pi)=>`<tr><td style="font-weight:600;">${lbl}</td>${MATERIAS.map(m=>`<td>${(s.grades&&s.grades[m]&&s.grades[m][pi]!=null)?s.grades[m][pi]:'—'}</td>`).join('')}</tr>`).join('')}
+  <tr style="background:#f9fafb;font-weight:700;"><td>PROM.</td>${MATERIAS.map(m=>{const sub=subjectAverage(s,m);return `<td>${sub!==null?sub.toFixed(1):'—'}</td>`;}).join('')}</tr>
+  </tbody>
+  </table>
+  <div class="side-boxes">
+  <div class="box"><p class="l">LENGUA INDÍGENA</p><p class="v">${s.lenguaIndigena||'—'}</p></div>
+  <div class="box"><p class="l">PROMEDIO FINAL</p><p class="v" style="color:#2563eb;">${avg!==null?avg.toFixed(1):'—'}</p></div>
+  <div class="box"><p class="l">ASISTENCIAS</p><p class="v">${s.asistencias||'—'}</p></div>
+  <div class="box"><p class="l">FOLIO</p><p class="v" style="word-break:break-all;">${s.folio||'—'}</p></div>
+  </div>
+  </div>
+  <table style="margin-bottom:10px;">
+  <thead><tr style="background:#f3f4f6;"><th style="width:36px;">PERIODO</th><th style="width:90px;">CAMPO FORMATIVO</th><th>OBSERVACIONES Y SUGERENCIAS</th></tr></thead>
+  <tbody>`;
+  PERIODOS_LABEL.forEach((lbl, pi) => {
+    MATERIAS.forEach((m, mi) => {
+      html += `<tr>${mi===0?`<td rowspan="${MATERIAS.length}" style="font-weight:600;vertical-align:top;">${lbl}</td>`:''}<td>${m}</td><td style="text-align:left;">${(s.observaciones && s.observaciones[m] && s.observaciones[m][pi]) || '—'}</td></tr>`;
+    });
+  });
+  html += `</tbody></table>
+  <p style="text-align:center;color:#9ca3af;font-size:9px;">Autoridad educativa: ${(s.schoolInfo && s.schoolInfo.autoridadNombre)||'—'} · ${(s.schoolInfo && s.schoolInfo.autoridadCargo)||''}</p>
+  </div>
+  <div class="no-print" style="margin-top:12px;">
+  <button class="btn btn-dark" onclick="window.print()">🖨️ Imprimir / Guardar PDF</button>
+  </div>
+  </main>`;
+  app.innerHTML = html;
+}
+
+function init() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('t');
+  if (!token) {
+    renderMessage('⚠️', 'Link no válido', 'Falta la información necesaria para mostrar la boleta. Pide a la escuela que te comparta el link nuevamente.');
+    return;
+  }
+  firebase.initializeApp(FIREBASE_CONFIG);
+  const db = firebase.database();
+  db.ref(DB_ROOT + '/reportesCompartidos/' + token).once('value').then(snap => {
+    const data = snap.val();
+    if (!data) {
+      renderMessage('🔒', 'Link no encontrado', 'Este link no existe o ya fue eliminado. Solicita uno nuevo a la escuela.');
+      return;
+    }
+    if (data.expiresAt && data.expiresAt < Date.now()) {
+      renderMessage('⏰', 'Este link ya expiró', 'Los links de consulta son válidos por 15 días. Pide a la escuela que te comparta uno nuevo.');
+      return;
+    }
+    renderBoleta(data);
+  }).catch(() => {
+    renderMessage('⚠️', 'No se pudo cargar la boleta', 'Verifica tu conexión a internet e intenta de nuevo.');
+  });
+}
+init();
+</script>
+</body>
+</html>
